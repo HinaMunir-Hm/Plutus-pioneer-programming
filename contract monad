@@ -13,12 +13,12 @@ import Plutus.Contract            as Contract
 import Plutus.Trace.Emulator      as Emulator
 import Wallet.Emulator.Wallet
 
--- Contract w s e a
+-- Contract w s e a -- writer monad, endpoints, error type, return
 -- EmulatorTrace a
 
-myContract1 :: Contract () Empty Text ()
+myContract1 :: Contract () Empty Text () --
 myContract1 = do
-    void $ Contract.throwError "BOOM!"
+    void $ Contract.throwError "BOOM!" --throw error string
     Contract.logInfo @String "hello from the contract"
 
 myTrace1 :: EmulatorTrace ()
@@ -27,28 +27,31 @@ myTrace1 = void $ activateContractWallet (knownWallet 1) myContract1
 test1 :: IO ()
 test1 = runEmulatorTraceIO myTrace1
 
-myContract2 :: Contract () Empty Void ()
+myContract2 :: Contract () Empty Void () --error handling
 myContract2 = Contract.handleError
     (\err -> Contract.logError $ "caught: " ++ unpack err)
-    myContract1
+    myContract1 --first run the contract 1 when error is thrown it will be caught by above error handler
 
 myTrace2 :: EmulatorTrace ()
-myTrace2 = void $ activateContractWallet (knownWallet 1) myContract2
+myTrace2 = void $ activateContractWallet (knownWallet 1) myContract2 --running contract 2 
 
 test2 :: IO ()
 test2 = runEmulatorTraceIO myTrace2
 
-type MySchema = Endpoint "foo" Int .\/ Endpoint "bar" String
+
+--- now for 's' in contract monad 
+
+type MySchema = Endpoint "foo" Int .\/ Endpoint "bar" String --.\/ type-operator 
 
 myContract3 :: Contract () MySchema Text ()
 myContract3 = do
-    awaitPromise $ endpoint @"foo" Contract.logInfo
-    awaitPromise $ endpoint @"bar" Contract.logInfo
+    awaitPromise $ endpoint @"foo" Contract.logInfo -- await until endpoint is called with an int and applied the contract.logInfo on provided int
+    awaitPromise $ endpoint @"bar" Contract.logInfo 
 
 myTrace3 :: EmulatorTrace ()
 myTrace3 = do
     h <- activateContractWallet (knownWallet 1) myContract3
-    callEndpoint @"foo" h 42
+    callEndpoint @"foo" h 42 
     callEndpoint @"bar" h "Haskell"
 
 test3 :: IO ()
@@ -56,27 +59,27 @@ test3 = runEmulatorTraceIO myTrace3
 
 myContract4 :: Contract [Int] Empty Text ()
 myContract4 = do
-    void $ Contract.waitNSlots 10
-    tell [1]
-    void $ Contract.waitNSlots 10
-    tell [2]
-    void $ Contract.waitNSlots 10
+    void $ Contract.waitNSlots 10 --wait for 10 slots
+    tell [1] -- foo
+    void $ Contract.waitNSlots 10 --again wait for 10 slots
+    tell [2] --bar
+    void $ Contract.waitNSlots 10 --wait for more 10 slots
 
 myTrace4 :: EmulatorTrace ()
 myTrace4 = do
     h <- activateContractWallet (knownWallet 1) myContract4
 
-    void $ Emulator.waitNSlots 5
-    xs <- observableState h
-    Extras.logInfo $ show xs
+    void $ Emulator.waitNSlots 5 --wait for 5 slots
+    xs <- observableState h --obersve state using handler and returns the state at that point of time 
+    Extras.logInfo $ show xs --log the state
 
-    void $ Emulator.waitNSlots 10
-    ys <- observableState h
-    Extras.logInfo $ show ys
+    void $ Emulator.waitNSlots 10 -- this time waiting for 10 slots
+    ys <- observableState h --observing state
+    Extras.logInfo $ show ys --loging the state
 
-    void $ Emulator.waitNSlots 10
-    zs <- observableState h
-    Extras.logInfo $ show zs
+    void $ Emulator.waitNSlots 10 -- this time waiting for 10 slots
+    zs <- observableState h --observing state
+    Extras.logInfo $ show zs --log the state
 
 test4 :: IO ()
 test4 = runEmulatorTraceIO myTrace4
